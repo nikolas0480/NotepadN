@@ -12,7 +12,7 @@ pub fn get_language(lang_name: &str) -> Option<tree_sitter::Language> {
     match lang_name {
         "rust" => Some(tree_sitter_rust::LANGUAGE.into()),
         "javascript" => Some(tree_sitter_javascript::LANGUAGE.into()),
-        _ => None,
+        "text" | _ => None,
     }
 }
 

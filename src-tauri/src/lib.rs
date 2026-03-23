@@ -2,15 +2,40 @@ pub mod highlighter;
 
 use std::fs;
 use highlighter::{get_highlights, HighlightToken};
+use encoding_rs::Encoding;
 
-#[tauri::command]
-fn open_file(path: String) -> Result<String, String> {
-    fs::read_to_string(&path).map_err(|e| e.to_string())
+fn get_encoding(name: &str) -> Option<&'static Encoding> {
+    Encoding::for_label(name.as_bytes())
 }
 
 #[tauri::command]
-fn save_file(path: String, content: String) -> Result<(), String> {
-    fs::write(&path, content).map_err(|e| e.to_string())
+fn open_file(path: String, encoding: Option<String>) -> Result<String, String> {
+    let bytes = fs::read(&path).map_err(|e| e.to_string())?;
+
+    let enc_name = encoding.unwrap_or_else(|| "utf-8".to_string());
+    let enc = get_encoding(&enc_name).unwrap_or(encoding_rs::UTF_8);
+
+    let (cow, _encoding_used, had_errors) = enc.decode(&bytes);
+
+    // Fallback logic if utf-8 was requested but failed to decode cleanly
+    if had_errors && enc_name == "utf-8" {
+       let alt_enc = encoding_rs::WINDOWS_1251;
+       let (alt_cow, _, alt_had_errors) = alt_enc.decode(&bytes);
+       if !alt_had_errors {
+           return Ok(alt_cow.into_owned());
+       }
+    }
+
+    Ok(cow.into_owned())
+}
+
+#[tauri::command]
+fn save_file(path: String, content: String, encoding: Option<String>) -> Result<(), String> {
+    let enc_name = encoding.unwrap_or_else(|| "utf-8".to_string());
+    let enc = get_encoding(&enc_name).unwrap_or(encoding_rs::UTF_8);
+
+    let (cow, _encoding_used, _had_errors) = enc.encode(&content);
+    fs::write(&path, cow).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
