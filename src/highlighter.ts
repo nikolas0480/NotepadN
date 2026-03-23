@@ -80,6 +80,9 @@ export const treeSitterHighlighter = StateField.define<DecorationSet>({
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 export const createTreeSitterExtension = (language: string) => {
+  if (language === 'text') {
+    return [];
+  }
   return [
     highlightTheme,
     treeSitterHighlighter,
