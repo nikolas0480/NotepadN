@@ -9,7 +9,7 @@ interface HighlightToken {
 }
 
 // A theme matching tree-sitter tokens to CSS classes
-const highlightTheme = EditorView.theme({
+const highlightThemeDark = EditorView.theme({
   '.ts-keyword': { color: '#c678dd' },
   '.ts-function': { color: '#61afef' },
   '.ts-function-builtin': { color: '#56b6c2' },
@@ -34,6 +34,33 @@ const highlightTheme = EditorView.theme({
   '.ts-escape': { color: '#56b6c2' },
   '.ts-label': { color: '#c678dd' },
   '.ts-module': { color: '#61afef' },
+});
+
+const highlightThemeLight = EditorView.theme({
+  '.ts-keyword': { color: '#d73a49' },
+  '.ts-function': { color: '#6f42c1' },
+  '.ts-function-builtin': { color: '#005cc5' },
+  '.ts-type': { color: '#005cc5' },
+  '.ts-type-builtin': { color: '#005cc5' },
+  '.ts-string': { color: '#032f62' },
+  '.ts-string-special': { color: '#032f62' },
+  '.ts-number': { color: '#005cc5' },
+  '.ts-boolean': { color: '#005cc5' },
+  '.ts-comment': { color: '#6a737d', fontStyle: 'italic' },
+  '.ts-variable': { color: '#e36209' },
+  '.ts-variable-builtin': { color: '#e36209' },
+  '.ts-variable-parameter': { color: '#e36209' },
+  '.ts-property': { color: '#005cc5' },
+  '.ts-operator': { color: '#d73a49' },
+  '.ts-punctuation': { color: '#24292e' },
+  '.ts-punctuation-bracket': { color: '#24292e' },
+  '.ts-punctuation-delimiter': { color: '#24292e' },
+  '.ts-constant': { color: '#005cc5' },
+  '.ts-tag': { color: '#22863a' },
+  '.ts-attribute': { color: '#6f42c1' },
+  '.ts-escape': { color: '#005cc5' },
+  '.ts-label': { color: '#d73a49' },
+  '.ts-module': { color: '#6f42c1' },
 });
 
 const tokenTypeToClass = (type: string) => {
@@ -79,12 +106,12 @@ export const treeSitterHighlighter = StateField.define<DecorationSet>({
 
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-export const createTreeSitterExtension = (language: string) => {
+export const createTreeSitterExtension = (language: string, theme: 'dark' | 'light') => {
   if (language === 'text') {
     return [];
   }
   return [
-    highlightTheme,
+    theme === 'dark' ? highlightThemeDark : highlightThemeLight,
     treeSitterHighlighter,
     EditorView.updateListener.of((update) => {
       if (update.docChanged) {

@@ -2,10 +2,11 @@ import { useState } from 'react';
 import { useEffect, useMemo, useRef } from 'react';
 import CodeMirror, { ReactCodeMirrorRef } from '@uiw/react-codemirror';
 import { oneDark } from '@codemirror/theme-one-dark';
+import { githubLight } from '@uiw/codemirror-theme-github';
 import { search } from '@codemirror/search';
 import { invoke } from '@tauri-apps/api/core';
 import { open, save } from '@tauri-apps/plugin-dialog';
-import { FileDown, FileUp, Plus, X } from 'lucide-react';
+import { FileDown, FileUp, Plus, X, Moon, Sun } from 'lucide-react';
 import { createTreeSitterExtension, setHighlightsEffect } from './highlighter';
 import './App.css';
 
@@ -19,12 +20,31 @@ const getLanguageFromPath = (path: string): string => {
       return 'javascript';
     case 'rs':
       return 'rust';
+    case 'py':
+      return 'python';
+    case 'html':
+    case 'htm':
+      return 'html';
+    case 'css':
+      return 'css';
+    case 'json':
+      return 'json';
+    case 'c':
+    case 'h':
+      return 'c';
+    case 'cpp':
+    case 'hpp':
+    case 'cc':
+    case 'cxx':
+      return 'cpp';
+    case 'go':
+      return 'go';
     default:
       return 'text';
   }
 };
 
-const AVAILABLE_LANGUAGES = ['javascript', 'rust', 'text'];
+const AVAILABLE_LANGUAGES = ['javascript', 'rust', 'python', 'html', 'css', 'json', 'c', 'cpp', 'go', 'text'];
 const AVAILABLE_ENCODINGS = ['utf-8', 'windows-1251', 'utf-16le', 'iso-8859-1'];
 
 interface Tab {
@@ -65,6 +85,11 @@ function App() {
     return 14;
   });
 
+  const [theme, setTheme] = useState<'dark' | 'light'>(() => {
+    const savedTheme = localStorage.getItem('notepadn_theme');
+    return (savedTheme as 'dark' | 'light') || 'dark';
+  });
+
   const editorRef = useRef<ReactCodeMirrorRef>(null);
   const [showLangMenu, setShowLangMenu] = useState(false);
   const [showEncMenu, setShowEncMenu] = useState(false);
@@ -82,6 +107,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem('notepadn_fontSize', fontSize.toString());
   }, [fontSize]);
+
+  useEffect(() => {
+    localStorage.setItem('notepadn_theme', theme);
+  }, [theme]);
 
   useEffect(() => {
     const handleWheel = (e: WheelEvent) => {
@@ -120,8 +149,8 @@ function App() {
   }, []);
 
   const extensions = useMemo(() => {
-    return [search(), createTreeSitterExtension(activeTab.language)];
-  }, [activeTab.language]);
+    return [search(), createTreeSitterExtension(activeTab.language, theme)];
+  }, [activeTab.language, theme]);
 
   // Force an initial parse when active tab changes
   useEffect(() => {
@@ -226,12 +255,14 @@ function App() {
 
   const handleDragStart = (e: React.DragEvent, id: string) => {
     e.dataTransfer.setData('tab_id', id);
+    e.dataTransfer.effectAllowed = 'move';
   };
 
   const handleDrop = (e: React.DragEvent, targetId: string) => {
     e.preventDefault();
+    e.currentTarget.classList.remove('bg-[#3e4451]', 'bg-gray-200');
     const sourceId = e.dataTransfer.getData('tab_id');
-    if (sourceId === targetId) return;
+    if (!sourceId || sourceId === targetId) return;
 
     const sourceIndex = tabs.findIndex(t => t.id === sourceId);
     const targetIndex = tabs.findIndex(t => t.id === targetId);
@@ -246,6 +277,17 @@ function App() {
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+
+  const handleDragEnter = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.currentTarget.classList.add('bg-[#3e4451]');
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.currentTarget.classList.remove('bg-[#3e4451]', 'bg-gray-200');
   };
 
   const handleEncodingChange = async (enc: string) => {
@@ -263,37 +305,46 @@ function App() {
   };
 
   return (
-    <div className="flex flex-col h-screen bg-[#282c34] text-white font-sans">
+    <div className={`flex flex-col h-screen ${theme === 'dark' ? 'bg-[#282c34] text-white' : 'bg-white text-black'} font-sans`}>
       {/* Header / Toolbar */}
-      <div className="flex items-center justify-between px-4 py-2 bg-[#21252b] border-b border-[#181a1f] shadow-sm">
+      <div className={`flex items-center justify-between px-4 py-2 ${theme === 'dark' ? 'bg-[#21252b] border-[#181a1f]' : 'bg-gray-100 border-gray-300'} border-b shadow-sm`}>
         <div className="flex space-x-2">
           <button
             onClick={handleNewFile}
-            className="flex items-center px-3 py-1.5 text-sm rounded hover:bg-[#3a3f4b] transition-colors"
+            className={`flex items-center px-3 py-1.5 text-sm rounded ${theme === 'dark' ? 'hover:bg-[#3a3f4b]' : 'hover:bg-gray-200'} transition-colors`}
             title="New File"
           >
             <Plus size={16} className="mr-1.5" /> New
           </button>
           <button
             onClick={handleOpenFile}
-            className="flex items-center px-3 py-1.5 text-sm rounded hover:bg-[#3a3f4b] transition-colors"
+            className={`flex items-center px-3 py-1.5 text-sm rounded ${theme === 'dark' ? 'hover:bg-[#3a3f4b]' : 'hover:bg-gray-200'} transition-colors`}
             title="Open File"
           >
             <FileUp size={16} className="mr-1.5" /> Open
           </button>
           <button
             onClick={handleSaveFile}
-            className="flex items-center px-3 py-1.5 text-sm rounded hover:bg-[#3a3f4b] transition-colors"
+            className={`flex items-center px-3 py-1.5 text-sm rounded ${theme === 'dark' ? 'hover:bg-[#3a3f4b]' : 'hover:bg-gray-200'} transition-colors`}
             title="Save File"
           >
             <FileDown size={16} className="mr-1.5" /> Save {activeTab.isDirty && '*'}
           </button>
         </div>
-        <div className="text-xs text-gray-400 font-semibold tracking-wider">NOTEPADN</div>
+        <div className="flex items-center space-x-4">
+          <button
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            className={`p-1.5 rounded ${theme === 'dark' ? 'hover:bg-[#3a3f4b] text-gray-400 hover:text-white' : 'hover:bg-gray-200 text-gray-600 hover:text-black'} transition-colors`}
+            title="Toggle Theme"
+          >
+            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
+          <div className={`text-xs ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'} font-semibold tracking-wider`}>NOTEPADN</div>
+        </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex bg-[#1e2227] overflow-x-auto custom-scrollbar">
+      <div className={`flex ${theme === 'dark' ? 'bg-[#1e2227]' : 'bg-gray-200'} overflow-x-auto custom-scrollbar`}>
         {tabs.map((tab) => (
           <div
             key={tab.id}
@@ -302,16 +353,18 @@ function App() {
             onDragStart={(e) => handleDragStart(e, tab.id)}
             onDrop={(e) => handleDrop(e, tab.id)}
             onDragOver={handleDragOver}
-            className={`flex items-center min-w-max px-4 py-2 cursor-pointer border-r border-[#181a1f] text-sm select-none transition-colors ${
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            className={`flex items-center min-w-max px-4 py-2 cursor-pointer border-r ${theme === 'dark' ? 'border-[#181a1f]' : 'border-gray-300'} text-sm select-none transition-colors ${
               activeTabId === tab.id
-                ? 'bg-[#282c34] text-white border-t-2 border-t-[#4d78cc]'
-                : 'bg-[#21252b] text-gray-400 hover:bg-[#2c313a]'
+                ? (theme === 'dark' ? 'bg-[#282c34] text-white border-t-2 border-t-[#4d78cc]' : 'bg-white text-black border-t-2 border-t-blue-500')
+                : (theme === 'dark' ? 'bg-[#21252b] text-gray-400 hover:bg-[#2c313a]' : 'bg-gray-100 text-gray-600 hover:bg-gray-50')
             }`}
           >
             <span className="mr-2">{tab.title}{tab.isDirty ? ' *' : ''}</span>
             <button
               onClick={(e) => closeTab(tab.id, e)}
-              className="p-0.5 rounded-md hover:bg-[#3e4451] text-gray-400 hover:text-white transition-colors"
+              className={`p-0.5 rounded-md ${theme === 'dark' ? 'hover:bg-[#3e4451] text-gray-400 hover:text-white' : 'hover:bg-gray-300 text-gray-500 hover:text-black'} transition-colors`}
             >
               <X size={14} />
             </button>
@@ -325,7 +378,7 @@ function App() {
           ref={editorRef}
           value={activeTab.content}
           height="100%"
-          theme={oneDark}
+          theme={theme === 'dark' ? oneDark : githubLight}
           extensions={extensions}
           onChange={(value) => {
             updateActiveTab({ content: value, isDirty: true });
@@ -336,23 +389,23 @@ function App() {
       </div>
 
       {/* Status Bar */}
-      <div className="flex items-center justify-between px-4 py-1 bg-[#21252b] text-xs text-gray-400 border-t border-[#181a1f]">
+      <div className={`flex items-center justify-between px-4 py-1 ${theme === 'dark' ? 'bg-[#21252b] text-gray-400 border-[#181a1f]' : 'bg-gray-100 text-gray-600 border-gray-300'} text-xs border-t`}>
         <div>
            {activeTab.path || 'Unsaved File'}
         </div>
         <div className="flex space-x-4 relative">
           <span
-            className="cursor-pointer hover:text-white transition-colors"
+            className={`cursor-pointer ${theme === 'dark' ? 'hover:text-white' : 'hover:text-black'} transition-colors`}
             onClick={() => { setShowEncMenu(!showEncMenu); setShowLangMenu(false); }}
           >
             Encoding: {activeTab.encoding}
           </span>
           {showEncMenu && (
-            <div className="absolute bottom-full right-20 mb-1 bg-[#282c34] border border-[#181a1f] shadow-lg rounded py-1 w-32 z-50">
+            <div className={`absolute bottom-full right-20 mb-1 ${theme === 'dark' ? 'bg-[#282c34] border-[#181a1f]' : 'bg-white border-gray-200'} border shadow-lg rounded py-1 w-32 z-50`}>
               {AVAILABLE_ENCODINGS.map(enc => (
                 <div
                   key={enc}
-                  className={`px-3 py-1.5 cursor-pointer hover:bg-[#3e4451] ${activeTab.encoding === enc ? 'text-white bg-[#2c313a]' : 'text-gray-400'}`}
+                  className={`px-3 py-1.5 cursor-pointer ${theme === 'dark' ? 'hover:bg-[#3e4451]' : 'hover:bg-gray-100'} ${activeTab.encoding === enc ? (theme === 'dark' ? 'text-white bg-[#2c313a]' : 'text-black bg-gray-50') : (theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}`}
                   onClick={() => handleEncodingChange(enc)}
                 >
                   {enc}
@@ -361,17 +414,17 @@ function App() {
             </div>
           )}
           <span
-            className="cursor-pointer hover:text-white transition-colors"
+            className={`cursor-pointer ${theme === 'dark' ? 'hover:text-white' : 'hover:text-black'} transition-colors`}
             onClick={() => { setShowLangMenu(!showLangMenu); setShowEncMenu(false); }}
           >
             Language: {activeTab.language}
           </span>
           {showLangMenu && (
-            <div className="absolute bottom-full right-0 mb-1 bg-[#282c34] border border-[#181a1f] shadow-lg rounded py-1 w-32 z-50">
+            <div className={`absolute bottom-full right-0 mb-1 ${theme === 'dark' ? 'bg-[#282c34] border-[#181a1f]' : 'bg-white border-gray-200'} border shadow-lg rounded py-1 w-32 z-50`}>
               {AVAILABLE_LANGUAGES.map(lang => (
                 <div
                   key={lang}
-                  className={`px-3 py-1.5 cursor-pointer hover:bg-[#3e4451] ${activeTab.language === lang ? 'text-white bg-[#2c313a]' : 'text-gray-400'}`}
+                  className={`px-3 py-1.5 cursor-pointer ${theme === 'dark' ? 'hover:bg-[#3e4451]' : 'hover:bg-gray-100'} ${activeTab.language === lang ? (theme === 'dark' ? 'text-white bg-[#2c313a]' : 'text-black bg-gray-50') : (theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}`}
                   onClick={() => {
                     updateActiveTab({ language: lang });
                     setShowLangMenu(false);
