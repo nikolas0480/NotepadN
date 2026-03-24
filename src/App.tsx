@@ -55,6 +55,7 @@ interface Tab {
   language: string;
   isDirty: boolean;
   encoding: string;
+  pane?: 'left' | 'right';
 }
 
 function App() {
@@ -67,13 +68,23 @@ function App() {
         console.error('Failed to parse saved tabs', e);
       }
     }
-    return [{ id: '1', title: 'Untitled', content: '', language: 'javascript', isDirty: false, encoding: 'utf-8' }];
+    return [{ id: '1', title: 'Untitled', content: '', language: 'javascript', isDirty: false, encoding: 'utf-8', pane: 'left' }];
   });
 
-  const [activeTabId, setActiveTabId] = useState<string>(() => {
-    const savedActiveId = localStorage.getItem('notepadn_activeTabId');
+  const [activeTabIdLeft, setActiveTabIdLeft] = useState<string>(() => {
+    const savedActiveId = localStorage.getItem('notepadn_activeTabIdLeft');
     if (savedActiveId) return savedActiveId;
     return '1';
+  });
+
+  const [activeTabIdRight, setActiveTabIdRight] = useState<string | null>(() => {
+    return localStorage.getItem('notepadn_activeTabIdRight');
+  });
+
+  const [activePane, setActivePane] = useState<'left' | 'right'>('left');
+
+  const [isSplitMode, setIsSplitMode] = useState<boolean>(() => {
+    return localStorage.getItem('notepadn_isSplitMode') === 'true';
   });
 
   const [fontSize, setFontSize] = useState<number>(() => {
@@ -90,21 +101,42 @@ function App() {
     return (savedTheme as 'dark' | 'light') || 'dark';
   });
 
-  const editorRef = useRef<ReactCodeMirrorRef>(null);
+  const editorRefLeft = useRef<ReactCodeMirrorRef>(null);
+  const editorRefRight = useRef<ReactCodeMirrorRef>(null);
+
   const [showLangMenu, setShowLangMenu] = useState(false);
   const [showEncMenu, setShowEncMenu] = useState(false);
   const [dragOverTabId, setDragOverTabId] = useState<string | null>(null);
   const [dragPosition, setDragPosition] = useState<'left' | 'right' | null>(null);
 
-  const activeTab = tabs.find((t) => t.id === activeTabId) || tabs[0];
+  const leftTabs = tabs.filter(t => t.pane !== 'right');
+  const rightTabs = tabs.filter(t => t.pane === 'right');
+
+  const activeTabLeft = leftTabs.find((t) => t.id === activeTabIdLeft) || leftTabs[0];
+  const activeTabRight = rightTabs.find((t) => t.id === activeTabIdRight) || rightTabs[0];
+
+
+  const activeTab = activePane === 'left' ? activeTabLeft : activeTabRight;
 
   useEffect(() => {
     localStorage.setItem('notepadn_tabs', JSON.stringify(tabs));
   }, [tabs]);
 
   useEffect(() => {
-    localStorage.setItem('notepadn_activeTabId', activeTabId);
-  }, [activeTabId]);
+    localStorage.setItem('notepadn_activeTabIdLeft', activeTabIdLeft);
+  }, [activeTabIdLeft]);
+
+  useEffect(() => {
+    if (activeTabIdRight) {
+      localStorage.setItem('notepadn_activeTabIdRight', activeTabIdRight);
+    } else {
+      localStorage.removeItem('notepadn_activeTabIdRight');
+    }
+  }, [activeTabIdRight]);
+
+  useEffect(() => {
+    localStorage.setItem('notepadn_isSplitMode', isSplitMode.toString());
+  }, [isSplitMode]);
 
   useEffect(() => {
     localStorage.setItem('notepadn_fontSize', fontSize.toString());
@@ -150,17 +182,18 @@ function App() {
     };
   }, []);
 
-  const extensions = useMemo(() => {
-    return [search(), createTreeSitterExtension(activeTab.language, theme)];
-  }, [activeTab.language, theme]);
+  const getExtensions = (language: string) => [search(), createTreeSitterExtension(language, theme)];
+  const extensionsLeft = useMemo(() => getExtensions(activeTabLeft?.language || 'javascript'), [activeTabLeft?.language, theme]);
+  const extensionsRight = useMemo(() => getExtensions(activeTabRight?.language || 'javascript'), [activeTabRight?.language, theme]);
 
   // Force an initial parse when active tab changes
   useEffect(() => {
-    const fetchHighlights = async () => {
+    const fetchHighlights = async (tab: Tab | undefined, ref: React.RefObject<ReactCodeMirrorRef | null>) => {
+      if (!tab) return;
       try {
-        const tokens = await invoke<any[]>('parse_highlights', { text: activeTab.content, language: activeTab.language });
-        if (editorRef.current?.view) {
-          editorRef.current.view.dispatch({
+        const tokens = await invoke<any[]>('parse_highlights', { text: tab.content, language: tab.language });
+        if (ref.current?.view) {
+          ref.current.view.dispatch({
              effects: setHighlightsEffect.of(tokens)
           });
         }
@@ -168,13 +201,34 @@ function App() {
         console.error("initial parse failed", e);
       }
     };
-    fetchHighlights();
-  }, [activeTabId, activeTab.language]);
+    fetchHighlights(activeTabLeft, editorRefLeft);
+  }, [activeTabIdLeft, activeTabLeft?.language]);
+
+  useEffect(() => {
+    const fetchHighlights = async (tab: Tab | undefined, ref: React.RefObject<ReactCodeMirrorRef | null>) => {
+      if (!tab) return;
+      try {
+        const tokens = await invoke<any[]>('parse_highlights', { text: tab.content, language: tab.language });
+        if (ref.current?.view) {
+          ref.current.view.dispatch({
+             effects: setHighlightsEffect.of(tokens)
+          });
+        }
+      } catch(e) {
+        console.error("initial parse failed", e);
+      }
+    };
+    if (isSplitMode && activeTabRight) {
+      fetchHighlights(activeTabRight, editorRefRight);
+    }
+  }, [activeTabIdRight, activeTabRight?.language, isSplitMode]);
 
   const updateActiveTab = (updates: Partial<Tab>) => {
+    const currentActiveId = activePane === 'left' ? activeTabIdLeft : activeTabIdRight;
+    if (!currentActiveId) return;
     setTabs((currentTabs) =>
       currentTabs.map((tab) =>
-        tab.id === activeTabId ? { ...tab, ...updates } : tab
+        tab.id === currentActiveId ? { ...tab, ...updates } : tab
       )
     );
   };
@@ -183,9 +237,13 @@ function App() {
     const newId = Date.now().toString();
     setTabs([
       ...tabs,
-      { id: newId, title: 'Untitled', content: '', language: 'javascript', isDirty: false, encoding: 'utf-8' },
+      { id: newId, title: 'Untitled', content: '', language: 'javascript', isDirty: false, encoding: 'utf-8', pane: activePane },
     ]);
-    setActiveTabId(newId);
+    if (activePane === 'left') {
+      setActiveTabIdLeft(newId);
+    } else {
+      setActiveTabIdRight(newId);
+    }
   };
 
   const handleOpenFile = async () => {
@@ -204,9 +262,13 @@ function App() {
 
         setTabs([
           ...tabs,
-          { id: newId, title, content, path: selected, language, isDirty: false, encoding: 'utf-8' },
+          { id: newId, title, content, path: selected, language, isDirty: false, encoding: 'utf-8', pane: activePane },
         ]);
-        setActiveTabId(newId);
+        if (activePane === 'left') {
+          setActiveTabIdLeft(newId);
+        } else {
+          setActiveTabIdRight(newId);
+        }
       }
     } catch (e) {
       console.error('Failed to open file', e);
@@ -214,6 +276,7 @@ function App() {
   };
 
   const handleSaveFile = async () => {
+    if (!activeTab) return;
     if (!activeTab.path) {
       try {
         const selected = await save({
@@ -240,16 +303,24 @@ function App() {
 
   const closeTab = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
+    const tabToClose = tabs.find(t => t.id === id);
+    if (!tabToClose) return;
+    const pane = tabToClose.pane === 'right' ? 'right' : 'left';
     const newTabs = tabs.filter((t) => t.id !== id);
+    const remainingInPane = newTabs.filter((t) => (t.pane === 'right' ? 'right' : 'left') === pane);
+
     if (newTabs.length === 0) {
       const newId = Date.now().toString();
       setTabs([
-        { id: newId, title: 'Untitled', content: '', language: 'javascript', isDirty: false, encoding: 'utf-8' },
+        { id: newId, title: 'Untitled', content: '', language: 'javascript', isDirty: false, encoding: 'utf-8', pane: 'left' },
       ]);
-      setActiveTabId(newId);
+      setActiveTabIdLeft(newId);
+      if (activePane === 'right') setActivePane('left');
     } else {
-      if (id === activeTabId) {
-        setActiveTabId(newTabs[newTabs.length - 1].id);
+      if (pane === 'left' && id === activeTabIdLeft) {
+        setActiveTabIdLeft(remainingInPane.length > 0 ? remainingInPane[remainingInPane.length - 1].id : '');
+      } else if (pane === 'right' && id === activeTabIdRight) {
+        setActiveTabIdRight(remainingInPane.length > 0 ? remainingInPane[remainingInPane.length - 1].id : '');
       }
       setTabs(newTabs);
     }
@@ -260,7 +331,7 @@ function App() {
     e.dataTransfer.effectAllowed = 'move';
   };
 
-const handleDrop = (e: React.DragEvent, targetId: string) => {
+const handleDrop = (e: React.DragEvent, targetId: string, targetPane: 'left' | 'right') => {
     e.preventDefault();
 
     setDragOverTabId(null);
@@ -273,23 +344,43 @@ const handleDrop = (e: React.DragEvent, targetId: string) => {
     let targetIndex = tabs.findIndex(t => t.id === targetId);
     if (sourceIndex === -1 || targetIndex === -1) return;
 
-    // Adjust target index based on drop position relative to the target tab
-    if (dragPosition === 'right') {
-      targetIndex += 1;
-    } else {
-      // If left, targetIndex is fine
-    }
-
     const newTabs = [...tabs];
     const [movedTab] = newTabs.splice(sourceIndex, 1);
 
-    // Adjust targetIndex if the source was before the target
-    if (sourceIndex < targetIndex) {
-      targetIndex -= 1;
+    // Update pane
+    movedTab.pane = targetPane;
+    if (targetPane === 'left') setActiveTabIdLeft(movedTab.id);
+    if (targetPane === 'right') setActiveTabIdRight(movedTab.id);
+    setActivePane(targetPane);
+
+    // Recalculate targetIndex since we mutated array
+    targetIndex = newTabs.findIndex(t => t.id === targetId);
+    if (dragPosition === 'right') {
+      targetIndex += 1;
     }
 
     newTabs.splice(targetIndex, 0, movedTab);
 
+    setTabs(newTabs);
+  };
+
+  const handleDropEmpty = (e: React.DragEvent, targetPane: 'left' | 'right') => {
+    e.preventDefault();
+    const sourceId = e.dataTransfer.getData('text/plain');
+    if (!sourceId) return;
+
+    const sourceIndex = tabs.findIndex(t => t.id === sourceId);
+    if (sourceIndex === -1) return;
+
+    const newTabs = [...tabs];
+    const [movedTab] = newTabs.splice(sourceIndex, 1);
+    movedTab.pane = targetPane;
+
+    if (targetPane === 'left') setActiveTabIdLeft(movedTab.id);
+    if (targetPane === 'right') setActiveTabIdRight(movedTab.id);
+    setActivePane(targetPane);
+
+    newTabs.push(movedTab);
     setTabs(newTabs);
   };
 
@@ -317,6 +408,7 @@ const handleDragOver = (e: React.DragEvent, id: string) => {
   };
 
   const handleEncodingChange = async (enc: string) => {
+    if (!activeTab) return;
     if (activeTab.path && !activeTab.isDirty) {
       try {
         const content = await invoke<string>('open_file', { path: activeTab.path, encoding: enc });
@@ -354,7 +446,34 @@ const handleDragOver = (e: React.DragEvent, id: string) => {
             className={`flex items-center px-3 py-1.5 text-sm rounded ${theme === 'dark' ? 'hover:bg-[#3a3f4b]' : 'hover:bg-gray-200'} transition-colors`}
             title="Save File"
           >
-            <FileDown size={16} className="mr-1.5" /> Save {activeTab.isDirty && '*'}
+            <FileDown size={16} className="mr-1.5" /> Save {activeTab?.isDirty && '*'}
+          </button>
+          <button
+            onClick={() => {
+              setIsSplitMode(!isSplitMode);
+              if (!isSplitMode) {
+                // Moving to split mode, ensure we have a right tab
+                if (rightTabs.length === 0 && leftTabs.length > 0) {
+                  const newId = Date.now().toString();
+                  setTabs(tabs => [...tabs, { ...leftTabs[0], id: newId, pane: 'right' }]);
+                  setActiveTabIdRight(newId);
+                }
+                setActivePane('right');
+              } else {
+                // Moving to single mode, move all right tabs to left
+                setTabs(tabs => tabs.map(t => ({ ...t, pane: 'left' })));
+                setActiveTabIdRight(null);
+                setActivePane('left');
+              }
+            }}
+            className={`flex items-center px-3 py-1.5 text-sm rounded ${isSplitMode ? (theme === 'dark' ? 'bg-[#3a3f4b]' : 'bg-gray-200') : (theme === 'dark' ? 'hover:bg-[#3a3f4b]' : 'hover:bg-gray-200')} transition-colors`}
+            title="Split View"
+          >
+            <span className="font-bold flex gap-0.5">
+              <div className="w-1.5 h-4 border border-current rounded-sm"></div>
+              <div className="w-1.5 h-4 border border-current rounded-sm"></div>
+            </span>
+            <span className="ml-1.5">Split</span>
           </button>
         </div>
         <div className="flex items-center space-x-4">
@@ -369,109 +488,184 @@ const handleDragOver = (e: React.DragEvent, id: string) => {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className={`flex ${theme === 'dark' ? 'bg-[#1e2227]' : 'bg-gray-200'} overflow-x-auto custom-scrollbar`}>
-        {tabs.map((tab) => (
-          <div
-            key={tab.id}
-            onClick={() => setActiveTabId(tab.id)}
-            draggable={true}
-            onDragStart={(e) => handleDragStart(e, tab.id)}
-            onDrop={(e) => handleDrop(e, tab.id)}
-            onDragOver={(e) => handleDragOver(e, tab.id)}
-            onDragEnter={handleDragEnter}
-            onDragLeave={handleDragLeave}
-            className={`relative flex items-center min-w-max px-4 py-2 cursor-pointer border-r ${theme === 'dark' ? 'border-[#181a1f]' : 'border-gray-300'} text-sm select-none transition-colors ${
-              activeTabId === tab.id
-                ? (theme === 'dark' ? 'bg-[#282c34] text-white border-t-2 border-t-[#4d78cc]' : 'bg-white text-black border-t-2 border-t-blue-500')
-                : (theme === 'dark' ? 'bg-[#21252b] text-gray-400 hover:bg-[#2c313a]' : 'bg-gray-100 text-gray-600 hover:bg-gray-50')
-            }`}
-          >
-            {dragOverTabId === tab.id && (
+      {/* Main Panes Area */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Left Pane */}
+        <div className={`flex flex-col flex-1 overflow-hidden ${isSplitMode && activePane === 'left' ? (theme === 'dark' ? 'ring-1 ring-inset ring-[#4d78cc] z-10' : 'ring-1 ring-inset ring-blue-500 z-10') : ''}`} onClick={() => setActivePane('left')}>
+          {/* Tabs Left */}
+          <div className={`flex ${theme === 'dark' ? 'bg-[#1e2227]' : 'bg-gray-200'} overflow-x-auto custom-scrollbar`}>
+            {leftTabs.map((tab) => (
               <div
-                className={`absolute top-0 bottom-0 w-[2px] ${theme === 'dark' ? 'bg-[#4d78cc]' : 'bg-blue-500'} z-50`}
-                style={{
-                  left: dragPosition === 'left' ? 0 : 'auto',
-                  right: dragPosition === 'right' ? 0 : 'auto'
+                key={tab.id}
+                onClick={() => { setActiveTabIdLeft(tab.id); setActivePane('left'); }}
+                draggable={true}
+                onDragStart={(e) => handleDragStart(e, tab.id)}
+                onDrop={(e) => handleDrop(e, tab.id, 'left')}
+                onDragOver={(e) => handleDragOver(e, tab.id)}
+                onDragEnter={handleDragEnter}
+                onDragLeave={handleDragLeave}
+                className={`relative flex items-center min-w-max px-4 py-2 cursor-pointer border-r ${theme === 'dark' ? 'border-[#181a1f]' : 'border-gray-300'} text-sm select-none transition-colors ${
+                  activeTabIdLeft === tab.id
+                    ? (theme === 'dark' ? 'bg-[#282c34] text-white border-t-2 border-t-[#4d78cc]' : 'bg-white text-black border-t-2 border-t-blue-500')
+                    : (theme === 'dark' ? 'bg-[#21252b] text-gray-400 hover:bg-[#2c313a]' : 'bg-gray-100 text-gray-600 hover:bg-gray-50')
+                }`}
+              >
+                {dragOverTabId === tab.id && (
+                  <div
+                    className={`absolute top-0 bottom-0 w-[2px] ${theme === 'dark' ? 'bg-[#4d78cc]' : 'bg-blue-500'} z-50`}
+                    style={{
+                      left: dragPosition === 'left' ? 0 : 'auto',
+                      right: dragPosition === 'right' ? 0 : 'auto'
+                    }}
+                  />
+                )}
+                <span className="mr-2">{tab.title}{tab.isDirty ? ' *' : ''}</span>
+                <button
+                  onClick={(e) => closeTab(tab.id, e)}
+                  className={`p-0.5 rounded-md ${theme === 'dark' ? 'hover:bg-[#3e4451] text-gray-400 hover:text-white' : 'hover:bg-gray-300 text-gray-500 hover:text-black'} transition-colors`}
+                >
+                  <X size={14} />
+                </button>
+              </div>
+            ))}
+            {/* Empty space drop target for left pane */}
+            <div className="flex-1" onDrop={(e) => handleDropEmpty(e, 'left')} onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }} />
+          </div>
+
+          {/* Editor Left */}
+          <div className="flex-1 overflow-hidden relative">
+            {activeTabLeft && (
+              <CodeMirror
+                ref={editorRefLeft}
+                value={activeTabLeft.content}
+                height="100%"
+                theme={theme === 'dark' ? oneDark : githubLight}
+                extensions={extensionsLeft}
+                onChange={(value) => {
+                  setTabs((currentTabs) => currentTabs.map((t) => t.id === activeTabLeft.id ? { ...t, content: value, isDirty: true } : t));
                 }}
+                className="h-full"
+                style={{ fontSize: `${fontSize}px` }}
               />
             )}
-            <span className="mr-2">{tab.title}{tab.isDirty ? ' *' : ''}</span>
-            <button
-              onClick={(e) => closeTab(tab.id, e)}
-              className={`p-0.5 rounded-md ${theme === 'dark' ? 'hover:bg-[#3e4451] text-gray-400 hover:text-white' : 'hover:bg-gray-300 text-gray-500 hover:text-black'} transition-colors`}
-            >
-              <X size={14} />
-            </button>
           </div>
-        ))}
-      </div>
+        </div>
 
-      {/* Editor Area */}
-      <div className="flex-1 overflow-hidden relative">
-        <CodeMirror
-          ref={editorRef}
-          value={activeTab.content}
-          height="100%"
-          theme={theme === 'dark' ? oneDark : githubLight}
-          extensions={extensions}
-          onChange={(value) => {
-            updateActiveTab({ content: value, isDirty: true });
-          }}
-          className="h-full"
-          style={{ fontSize: `${fontSize}px` }}
-        />
+        {/* Right Pane */}
+        {isSplitMode && (
+          <div className={`flex flex-col flex-1 overflow-hidden border-l ${theme === 'dark' ? 'border-[#181a1f]' : 'border-gray-300'} ${isSplitMode && activePane === 'right' ? (theme === 'dark' ? 'ring-1 ring-inset ring-[#4d78cc] z-10' : 'ring-1 ring-inset ring-blue-500 z-10') : ''}`} onClick={() => setActivePane('right')}>
+            {/* Tabs Right */}
+            <div className={`flex ${theme === 'dark' ? 'bg-[#1e2227]' : 'bg-gray-200'} overflow-x-auto custom-scrollbar`}>
+              {rightTabs.map((tab) => (
+                <div
+                  key={tab.id}
+                  onClick={() => { setActiveTabIdRight(tab.id); setActivePane('right'); }}
+                  draggable={true}
+                  onDragStart={(e) => handleDragStart(e, tab.id)}
+                  onDrop={(e) => handleDrop(e, tab.id, 'right')}
+                  onDragOver={(e) => handleDragOver(e, tab.id)}
+                  onDragEnter={handleDragEnter}
+                  onDragLeave={handleDragLeave}
+                  className={`relative flex items-center min-w-max px-4 py-2 cursor-pointer border-r ${theme === 'dark' ? 'border-[#181a1f]' : 'border-gray-300'} text-sm select-none transition-colors ${
+                    activeTabIdRight === tab.id
+                      ? (theme === 'dark' ? 'bg-[#282c34] text-white border-t-2 border-t-[#4d78cc]' : 'bg-white text-black border-t-2 border-t-blue-500')
+                      : (theme === 'dark' ? 'bg-[#21252b] text-gray-400 hover:bg-[#2c313a]' : 'bg-gray-100 text-gray-600 hover:bg-gray-50')
+                  }`}
+                >
+                  {dragOverTabId === tab.id && (
+                    <div
+                      className={`absolute top-0 bottom-0 w-[2px] ${theme === 'dark' ? 'bg-[#4d78cc]' : 'bg-blue-500'} z-50`}
+                      style={{
+                        left: dragPosition === 'left' ? 0 : 'auto',
+                        right: dragPosition === 'right' ? 0 : 'auto'
+                      }}
+                    />
+                  )}
+                  <span className="mr-2">{tab.title}{tab.isDirty ? ' *' : ''}</span>
+                  <button
+                    onClick={(e) => closeTab(tab.id, e)}
+                    className={`p-0.5 rounded-md ${theme === 'dark' ? 'hover:bg-[#3e4451] text-gray-400 hover:text-white' : 'hover:bg-gray-300 text-gray-500 hover:text-black'} transition-colors`}
+                  >
+                    <X size={14} />
+                  </button>
+                </div>
+              ))}
+              {/* Empty space drop target for right pane */}
+              <div className="flex-1" onDrop={(e) => handleDropEmpty(e, 'right')} onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; }} />
+            </div>
+
+            {/* Editor Right */}
+            <div className="flex-1 overflow-hidden relative">
+              {activeTabRight && (
+                <CodeMirror
+                  ref={editorRefRight}
+                  value={activeTabRight.content}
+                  height="100%"
+                  theme={theme === 'dark' ? oneDark : githubLight}
+                  extensions={extensionsRight}
+                  onChange={(value) => {
+                    setTabs((currentTabs) => currentTabs.map((t) => t.id === activeTabRight.id ? { ...t, content: value, isDirty: true } : t));
+                  }}
+                  className="h-full"
+                  style={{ fontSize: `${fontSize}px` }}
+                />
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Status Bar */}
       <div className={`flex items-center justify-between px-4 py-1 ${theme === 'dark' ? 'bg-[#21252b] text-gray-400 border-[#181a1f]' : 'bg-gray-100 text-gray-600 border-gray-300'} text-xs border-t`}>
         <div>
-           {activeTab.path || 'Unsaved File'}
+           {activeTab ? (activeTab.path || 'Unsaved File') : 'No File'}
         </div>
-        <div className="flex space-x-4 relative">
-          <span
-            className={`cursor-pointer ${theme === 'dark' ? 'hover:text-white' : 'hover:text-black'} transition-colors`}
-            onClick={() => { setShowEncMenu(!showEncMenu); setShowLangMenu(false); }}
-          >
-            Encoding: {activeTab.encoding}
-          </span>
-          {showEncMenu && (
-            <div className={`absolute bottom-full right-20 mb-1 ${theme === 'dark' ? 'bg-[#282c34] border-[#181a1f]' : 'bg-white border-gray-200'} border shadow-lg rounded py-1 w-32 z-50`}>
-              {AVAILABLE_ENCODINGS.map(enc => (
-                <div
-                  key={enc}
-                  className={`px-3 py-1.5 cursor-pointer ${theme === 'dark' ? 'hover:bg-[#3e4451]' : 'hover:bg-gray-100'} ${activeTab.encoding === enc ? (theme === 'dark' ? 'text-white bg-[#2c313a]' : 'text-black bg-gray-50') : (theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}`}
-                  onClick={() => handleEncodingChange(enc)}
-                >
-                  {enc}
-                </div>
-              ))}
-            </div>
-          )}
-          <span
-            className={`cursor-pointer ${theme === 'dark' ? 'hover:text-white' : 'hover:text-black'} transition-colors`}
-            onClick={() => { setShowLangMenu(!showLangMenu); setShowEncMenu(false); }}
-          >
-            Language: {activeTab.language}
-          </span>
-          {showLangMenu && (
-            <div className={`absolute bottom-full right-0 mb-1 ${theme === 'dark' ? 'bg-[#282c34] border-[#181a1f]' : 'bg-white border-gray-200'} border shadow-lg rounded py-1 w-32 z-50`}>
-              {AVAILABLE_LANGUAGES.map(lang => (
-                <div
-                  key={lang}
-                  className={`px-3 py-1.5 cursor-pointer ${theme === 'dark' ? 'hover:bg-[#3e4451]' : 'hover:bg-gray-100'} ${activeTab.language === lang ? (theme === 'dark' ? 'text-white bg-[#2c313a]' : 'text-black bg-gray-50') : (theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}`}
-                  onClick={() => {
-                    updateActiveTab({ language: lang });
-                    setShowLangMenu(false);
-                  }}
-                >
-                  {lang}
-                </div>
-              ))}
-            </div>
-          )}
-          <span>{activeTab.content.length} chars</span>
-        </div>
+        {activeTab && (
+          <div className="flex space-x-4 relative">
+            <span
+              className={`cursor-pointer ${theme === 'dark' ? 'hover:text-white' : 'hover:text-black'} transition-colors`}
+              onClick={() => { setShowEncMenu(!showEncMenu); setShowLangMenu(false); }}
+            >
+              Encoding: {activeTab.encoding}
+            </span>
+            {showEncMenu && (
+              <div className={`absolute bottom-full right-20 mb-1 ${theme === 'dark' ? 'bg-[#282c34] border-[#181a1f]' : 'bg-white border-gray-200'} border shadow-lg rounded py-1 w-32 z-50`}>
+                {AVAILABLE_ENCODINGS.map(enc => (
+                  <div
+                    key={enc}
+                    className={`px-3 py-1.5 cursor-pointer ${theme === 'dark' ? 'hover:bg-[#3e4451]' : 'hover:bg-gray-100'} ${activeTab.encoding === enc ? (theme === 'dark' ? 'text-white bg-[#2c313a]' : 'text-black bg-gray-50') : (theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}`}
+                    onClick={() => handleEncodingChange(enc)}
+                  >
+                    {enc}
+                  </div>
+                ))}
+              </div>
+            )}
+            <span
+              className={`cursor-pointer ${theme === 'dark' ? 'hover:text-white' : 'hover:text-black'} transition-colors`}
+              onClick={() => { setShowLangMenu(!showLangMenu); setShowEncMenu(false); }}
+            >
+              Language: {activeTab.language}
+            </span>
+            {showLangMenu && (
+              <div className={`absolute bottom-full right-0 mb-1 ${theme === 'dark' ? 'bg-[#282c34] border-[#181a1f]' : 'bg-white border-gray-200'} border shadow-lg rounded py-1 w-32 z-50`}>
+                {AVAILABLE_LANGUAGES.map(lang => (
+                  <div
+                    key={lang}
+                    className={`px-3 py-1.5 cursor-pointer ${theme === 'dark' ? 'hover:bg-[#3e4451]' : 'hover:bg-gray-100'} ${activeTab.language === lang ? (theme === 'dark' ? 'text-white bg-[#2c313a]' : 'text-black bg-gray-50') : (theme === 'dark' ? 'text-gray-400' : 'text-gray-600')}`}
+                    onClick={() => {
+                      updateActiveTab({ language: lang });
+                      setShowLangMenu(false);
+                    }}
+                  >
+                    {lang}
+                  </div>
+                ))}
+              </div>
+            )}
+            <span>{activeTab.content.length} chars</span>
+          </div>
+        )}
       </div>
     </div>
   );
