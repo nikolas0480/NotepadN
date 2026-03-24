@@ -254,14 +254,14 @@ function App() {
   };
 
   const handleDragStart = (e: React.DragEvent, id: string) => {
-    e.dataTransfer.setData('tab_id', id);
+    e.dataTransfer.setData('text/plain', id);
     e.dataTransfer.effectAllowed = 'move';
   };
 
   const handleDrop = (e: React.DragEvent, targetId: string) => {
     e.preventDefault();
     e.currentTarget.classList.remove('bg-[#3e4451]', 'bg-gray-200');
-    const sourceId = e.dataTransfer.getData('tab_id');
+    const sourceId = e.dataTransfer.getData('text/plain');
     if (!sourceId || sourceId === targetId) return;
 
     const sourceIndex = tabs.findIndex(t => t.id === sourceId);
