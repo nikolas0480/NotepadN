@@ -93,6 +93,8 @@ function App() {
   const editorRef = useRef<ReactCodeMirrorRef>(null);
   const [showLangMenu, setShowLangMenu] = useState(false);
   const [showEncMenu, setShowEncMenu] = useState(false);
+  const [dragOverTabId, setDragOverTabId] = useState<string | null>(null);
+  const [dragPosition, setDragPosition] = useState<'left' | 'right' | null>(null);
 
   const activeTab = tabs.find((t) => t.id === activeTabId) || tabs[0];
 
@@ -258,36 +260,60 @@ function App() {
     e.dataTransfer.effectAllowed = 'move';
   };
 
-  const handleDrop = (e: React.DragEvent, targetId: string) => {
+const handleDrop = (e: React.DragEvent, targetId: string) => {
     e.preventDefault();
-    e.currentTarget.classList.remove('bg-[#3e4451]', 'bg-gray-200');
+
+    setDragOverTabId(null);
+    setDragPosition(null);
+
     const sourceId = e.dataTransfer.getData('text/plain');
     if (!sourceId || sourceId === targetId) return;
 
     const sourceIndex = tabs.findIndex(t => t.id === sourceId);
-    const targetIndex = tabs.findIndex(t => t.id === targetId);
+    let targetIndex = tabs.findIndex(t => t.id === targetId);
     if (sourceIndex === -1 || targetIndex === -1) return;
+
+    // Adjust target index based on drop position relative to the target tab
+    if (dragPosition === 'right') {
+      targetIndex += 1;
+    } else {
+      // If left, targetIndex is fine
+    }
 
     const newTabs = [...tabs];
     const [movedTab] = newTabs.splice(sourceIndex, 1);
+
+    // Adjust targetIndex if the source was before the target
+    if (sourceIndex < targetIndex) {
+      targetIndex -= 1;
+    }
+
     newTabs.splice(targetIndex, 0, movedTab);
 
     setTabs(newTabs);
   };
 
-  const handleDragOver = (e: React.DragEvent) => {
+const handleDragOver = (e: React.DragEvent, id: string) => {
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
+
+    const target = e.currentTarget as HTMLElement;
+    const rect = target.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const position = x < rect.width / 2 ? 'left' : 'right';
+
+    setDragOverTabId(id);
+    setDragPosition(position);
   };
 
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
-    e.currentTarget.classList.add('bg-[#3e4451]');
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
-    e.currentTarget.classList.remove('bg-[#3e4451]', 'bg-gray-200');
+    setDragOverTabId(null);
+    setDragPosition(null);
   };
 
   const handleEncodingChange = async (enc: string) => {
@@ -352,15 +378,24 @@ function App() {
             draggable={true}
             onDragStart={(e) => handleDragStart(e, tab.id)}
             onDrop={(e) => handleDrop(e, tab.id)}
-            onDragOver={handleDragOver}
+            onDragOver={(e) => handleDragOver(e, tab.id)}
             onDragEnter={handleDragEnter}
             onDragLeave={handleDragLeave}
-            className={`flex items-center min-w-max px-4 py-2 cursor-pointer border-r ${theme === 'dark' ? 'border-[#181a1f]' : 'border-gray-300'} text-sm select-none transition-colors ${
+            className={`relative flex items-center min-w-max px-4 py-2 cursor-pointer border-r ${theme === 'dark' ? 'border-[#181a1f]' : 'border-gray-300'} text-sm select-none transition-colors ${
               activeTabId === tab.id
                 ? (theme === 'dark' ? 'bg-[#282c34] text-white border-t-2 border-t-[#4d78cc]' : 'bg-white text-black border-t-2 border-t-blue-500')
                 : (theme === 'dark' ? 'bg-[#21252b] text-gray-400 hover:bg-[#2c313a]' : 'bg-gray-100 text-gray-600 hover:bg-gray-50')
             }`}
           >
+            {dragOverTabId === tab.id && (
+              <div
+                className={`absolute top-0 bottom-0 w-[2px] ${theme === 'dark' ? 'bg-[#4d78cc]' : 'bg-blue-500'} z-50`}
+                style={{
+                  left: dragPosition === 'left' ? 0 : 'auto',
+                  right: dragPosition === 'right' ? 0 : 'auto'
+                }}
+              />
+            )}
             <span className="mr-2">{tab.title}{tab.isDirty ? ' *' : ''}</span>
             <button
               onClick={(e) => closeTab(tab.id, e)}
