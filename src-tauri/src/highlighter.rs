@@ -12,6 +12,13 @@ pub fn get_language(lang_name: &str) -> Option<tree_sitter::Language> {
     match lang_name {
         "rust" => Some(tree_sitter_rust::LANGUAGE.into()),
         "javascript" => Some(tree_sitter_javascript::LANGUAGE.into()),
+        "python" => Some(tree_sitter_python::LANGUAGE.into()),
+        "html" => Some(tree_sitter_html::LANGUAGE.into()),
+        "css" => Some(tree_sitter_css::LANGUAGE.into()),
+        "json" => Some(tree_sitter_json::LANGUAGE.into()),
+        "c" => Some(tree_sitter_c::LANGUAGE.into()),
+        "cpp" => Some(tree_sitter_cpp::LANGUAGE.into()),
+        "go" => Some(tree_sitter_go::LANGUAGE.into()),
         "text" | _ => None,
     }
 }
@@ -36,6 +43,83 @@ pub fn get_highlight_config(lang_name: &str) -> Option<HighlightConfiguration> {
                 tree_sitter_javascript::HIGHLIGHT_QUERY,
                 tree_sitter_javascript::INJECTIONS_QUERY,
                 tree_sitter_javascript::LOCALS_QUERY,
+            ).ok()?;
+            config.configure(&HIGHLIGHT_NAMES);
+            Some(config)
+        }
+        "python" => {
+            let mut config = HighlightConfiguration::new(
+                tree_sitter_python::LANGUAGE.into(),
+                "python",
+                tree_sitter_python::HIGHLIGHTS_QUERY,
+                "",
+                "",
+            ).ok()?;
+            config.configure(&HIGHLIGHT_NAMES);
+            Some(config)
+        }
+        "html" => {
+            let mut config = HighlightConfiguration::new(
+                tree_sitter_html::LANGUAGE.into(),
+                "html",
+                tree_sitter_html::HIGHLIGHTS_QUERY,
+                tree_sitter_html::INJECTIONS_QUERY,
+                "",
+            ).ok()?;
+            config.configure(&HIGHLIGHT_NAMES);
+            Some(config)
+        }
+        "css" => {
+            let mut config = HighlightConfiguration::new(
+                tree_sitter_css::LANGUAGE.into(),
+                "css",
+                tree_sitter_css::HIGHLIGHTS_QUERY,
+                "",
+                "",
+            ).ok()?;
+            config.configure(&HIGHLIGHT_NAMES);
+            Some(config)
+        }
+        "json" => {
+            let mut config = HighlightConfiguration::new(
+                tree_sitter_json::LANGUAGE.into(),
+                "json",
+                tree_sitter_json::HIGHLIGHTS_QUERY,
+                "",
+                "",
+            ).ok()?;
+            config.configure(&HIGHLIGHT_NAMES);
+            Some(config)
+        }
+        "c" => {
+            let mut config = HighlightConfiguration::new(
+                tree_sitter_c::LANGUAGE.into(),
+                "c",
+                tree_sitter_c::HIGHLIGHT_QUERY,
+                "",
+                "",
+            ).ok()?;
+            config.configure(&HIGHLIGHT_NAMES);
+            Some(config)
+        }
+        "cpp" => {
+            let mut config = HighlightConfiguration::new(
+                tree_sitter_cpp::LANGUAGE.into(),
+                "cpp",
+                tree_sitter_cpp::HIGHLIGHT_QUERY,
+                "",
+                "",
+            ).ok()?;
+            config.configure(&HIGHLIGHT_NAMES);
+            Some(config)
+        }
+        "go" => {
+            let mut config = HighlightConfiguration::new(
+                tree_sitter_go::LANGUAGE.into(),
+                "go",
+                tree_sitter_go::HIGHLIGHTS_QUERY,
+                "",
+                "",
             ).ok()?;
             config.configure(&HIGHLIGHT_NAMES);
             Some(config)
