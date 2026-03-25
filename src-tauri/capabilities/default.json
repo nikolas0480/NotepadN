@@ -6,22 +6,6 @@
   "permissions": [
     "core:default",
     "opener:default",
-    "dialog:default",
-    "shell:default",
-    {
-      "identifier": "shell:allow-execute",
-      "allow": [
-        {
-          "name": "sh",
-          "cmd": "sh",
-          "args": ["-c", { "validator": "\\S+" }]
-        },
-        {
-          "name": "cmd",
-          "cmd": "cmd",
-          "args": ["/c", { "validator": "\\S+" }]
-        }
-      ]
-    }
+    "dialog:default"
   ]
 }
