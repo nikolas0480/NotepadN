@@ -47,6 +47,12 @@ const getLanguageFromPath = (path: string): string => {
 const AVAILABLE_LANGUAGES = ['javascript', 'rust', 'python', 'html', 'css', 'json', 'c', 'cpp', 'go', 'text'];
 const AVAILABLE_ENCODINGS = ['utf-8', 'windows-1251', 'utf-16le', 'iso-8859-1'];
 
+interface Extension {
+  id: string;
+  name: string;
+  command: string;
+}
+
 interface Tab {
   id: string;
   title: string;
@@ -106,6 +112,8 @@ function App() {
 
   const [showLangMenu, setShowLangMenu] = useState(false);
   const [showEncMenu, setShowEncMenu] = useState(false);
+  const [extensions, setExtensions] = useState<Extension[]>([]);
+  const [showExtMenu, setShowExtMenu] = useState(false);
   const [dragOverTabId, setDragOverTabId] = useState<string | null>(null);
   const [dragPosition, setDragPosition] = useState<'left' | 'right' | null>(null);
 
@@ -117,6 +125,10 @@ function App() {
 
 
   const activeTab = activePane === 'left' ? activeTabLeft : activeTabRight;
+
+  useEffect(() => {
+    invoke<Extension[]>('load_extensions').then(setExtensions).catch(console.error);
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('notepadn_tabs', JSON.stringify(tabs));
@@ -407,6 +419,42 @@ const handleDragOver = (e: React.DragEvent, id: string) => {
     setDragPosition(null);
   };
 
+
+  const handleExecuteExtension = async (ext: Extension) => {
+    if (!activeTab) return;
+
+    // get selected text if any
+    let textToProcess = activeTab.content;
+
+    let from = 0;
+    let to = textToProcess.length;
+
+    const view = activePane === 'left' ? editorRefLeft.current?.view : editorRefRight.current?.view;
+    if (view) {
+      const selection = view.state.selection.main;
+      if (!selection.empty) {
+        from = selection.from;
+        to = selection.to;
+        textToProcess = view.state.sliceDoc(from, to);
+
+      }
+    }
+
+    try {
+      const output = await invoke<string>('execute_cli_command', { command: ext.command, input: textToProcess });
+
+      if (view) {
+        view.dispatch({
+          changes: { from, to, insert: output }
+        });
+      }
+    } catch (e) {
+      console.error('Extension execution failed', e);
+      alert('Error: ' + e);
+    }
+    setShowExtMenu(false);
+  };
+
   const handleEncodingChange = async (enc: string) => {
     if (!activeTab) return;
     if (activeTab.path && !activeTab.isDirty) {
@@ -441,6 +489,33 @@ const handleDragOver = (e: React.DragEvent, id: string) => {
           >
             <FileUp size={16} className="mr-1.5" /> Open
           </button>
+
+          <div className="relative">
+            <button
+              onClick={() => setShowExtMenu(!showExtMenu)}
+              className={`flex items-center px-3 py-1.5 text-sm rounded ${theme === 'dark' ? 'hover:bg-[#3a3f4b]' : 'hover:bg-gray-200'} transition-colors`}
+              title="Extensions"
+            >
+              Tools
+            </button>
+            {showExtMenu && (
+              <div className={`absolute top-full left-0 mt-1 ${theme === 'dark' ? 'bg-[#282c34] border-[#181a1f]' : 'bg-white border-gray-200'} border shadow-lg rounded py-1 min-w-[150px] z-50`}>
+                {extensions.length === 0 && (
+                   <div className={`px-3 py-1.5 text-sm ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>No extensions</div>
+                )}
+                {extensions.map(ext => (
+                  <div
+                    key={ext.id}
+                    className={`px-3 py-1.5 cursor-pointer text-sm ${theme === 'dark' ? 'hover:bg-[#3e4451] text-gray-300 hover:text-white' : 'hover:bg-gray-100 text-gray-700 hover:text-black'}`}
+                    onClick={() => handleExecuteExtension(ext)}
+                  >
+                    {ext.name}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
           <button
             onClick={handleSaveFile}
             className={`flex items-center px-3 py-1.5 text-sm rounded ${theme === 'dark' ? 'hover:bg-[#3a3f4b]' : 'hover:bg-gray-200'} transition-colors`}

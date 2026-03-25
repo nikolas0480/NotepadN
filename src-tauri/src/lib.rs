@@ -1,8 +1,10 @@
 pub mod highlighter;
+pub mod ext;
 
 use std::fs;
 use highlighter::{get_highlights, HighlightToken};
 use encoding_rs::Encoding;
+use ext::{load_extensions, execute_cli_command};
 
 fn get_encoding(name: &str) -> Option<&'static Encoding> {
     Encoding::for_label(name.as_bytes())
@@ -48,10 +50,13 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![
             open_file,
             save_file,
-            parse_highlights
+            parse_highlights,
+            load_extensions,
+            execute_cli_command
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
