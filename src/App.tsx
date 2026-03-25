@@ -6,7 +6,7 @@ import { githubLight } from '@uiw/codemirror-theme-github';
 import { search } from '@codemirror/search';
 import { invoke } from '@tauri-apps/api/core';
 import { open, save } from '@tauri-apps/plugin-dialog';
-import { FileDown, FileUp, Plus, X, Moon, Sun } from 'lucide-react';
+import { FileDown, FileUp, Plus, X, Moon, Sun, Wrench } from 'lucide-react';
 import { createTreeSitterExtension, setHighlightsEffect } from './highlighter';
 import './App.css';
 
@@ -46,6 +46,12 @@ const getLanguageFromPath = (path: string): string => {
 
 const AVAILABLE_LANGUAGES = ['javascript', 'rust', 'python', 'html', 'css', 'json', 'c', 'cpp', 'go', 'text'];
 const AVAILABLE_ENCODINGS = ['utf-8', 'windows-1251', 'utf-16le', 'iso-8859-1'];
+
+
+interface ToolCommand {
+  name: string;
+  command: string;
+}
 
 interface Tab {
   id: string;
@@ -106,6 +112,10 @@ function App() {
 
   const [showLangMenu, setShowLangMenu] = useState(false);
   const [showEncMenu, setShowEncMenu] = useState(false);
+
+  const [toolCommands, setToolCommands] = useState<ToolCommand[]>([]);
+  const [showToolsMenu, setShowToolsMenu] = useState(false);
+
   const [dragOverTabId, setDragOverTabId] = useState<string | null>(null);
   const [dragPosition, setDragPosition] = useState<'left' | 'right' | null>(null);
 
@@ -133,6 +143,19 @@ function App() {
       localStorage.removeItem('notepadn_activeTabIdRight');
     }
   }, [activeTabIdRight]);
+
+
+  useEffect(() => {
+    const loadCommands = async () => {
+      try {
+        const cmds = await invoke<ToolCommand[]>('get_commands_config');
+        setToolCommands(cmds);
+      } catch(e) {
+        console.error("Failed to load commands", e);
+      }
+    };
+    loadCommands();
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('notepadn_isSplitMode', isSplitMode.toString());
@@ -422,6 +445,62 @@ const handleDragOver = (e: React.DragEvent, id: string) => {
     setShowEncMenu(false);
   };
 
+
+  const handleEditCommands = async () => {
+    setShowToolsMenu(false);
+    try {
+      const configPath = await invoke<string>('get_config_file_path');
+      const content = await invoke<string>('open_file', { path: configPath, encoding: 'utf-8' });
+
+      const existingTab = tabs.find(t => t.path === configPath);
+      if (existingTab) {
+         if (existingTab.pane === 'left') {
+             setActivePane('left');
+             setActiveTabIdLeft(existingTab.id);
+         } else {
+             setActivePane('right');
+             setActiveTabIdRight(existingTab.id);
+         }
+         return;
+      }
+
+      const newTab: Tab = {
+        id: Date.now().toString(),
+        title: 'commands.json',
+        content,
+        isDirty: false,
+        path: configPath,
+        language: 'json',
+        encoding: 'utf-8',
+        pane: activePane
+      };
+      setTabs([...tabs, newTab]);
+      if (activePane === 'left') setActiveTabIdLeft(newTab.id);
+      else setActiveTabIdRight(newTab.id);
+    } catch(e) {
+      console.error(e);
+      alert("Failed to open commands config file");
+    }
+  };
+
+  const handleRunTool = async (cmd: ToolCommand) => {
+    setShowToolsMenu(false);
+    const activeTab = activePane === 'left' ? activeTabLeft : activeTabRight;
+    if (!activeTab) return;
+
+    try {
+      const output = await invoke<string>('run_external_command', {
+         command: cmd.command,
+         input: activeTab.content
+      });
+
+      updateActiveTab({ content: output, isDirty: true });
+    } catch(e: any) {
+      console.error("Tool execution failed", e);
+      alert("Command failed: " + e);
+    }
+  };
+
   return (
     <div className={`flex flex-col h-screen ${theme === 'dark' ? 'bg-[#282c34] text-white' : 'bg-white text-black'} font-sans`}>
       {/* Header / Toolbar */}
@@ -448,6 +527,38 @@ const handleDragOver = (e: React.DragEvent, id: string) => {
           >
             <FileDown size={16} className="mr-1.5" /> Save {activeTab?.isDirty && '*'}
           </button>
+
+          {/* Tools Menu */}
+          <div className="relative z-50">
+            <button
+              onClick={() => { setShowToolsMenu(!showToolsMenu); setShowEncMenu(false); setShowLangMenu(false); }}
+              className={`flex items-center px-3 py-1.5 text-sm rounded ${theme === 'dark' ? 'hover:bg-[#3a3f4b]' : 'hover:bg-gray-200'} transition-colors`}
+              title="Tools"
+            >
+              <Wrench size={16} className="mr-1.5" /> Tools
+            </button>
+            {showToolsMenu && (
+              <div className={`absolute top-full left-0 mt-1 ${theme === 'dark' ? 'bg-[#282c34] border-[#181a1f]' : 'bg-white border-gray-200'} border shadow-lg rounded py-1 w-64`}>
+                {toolCommands.map((cmd, idx) => (
+                  <div
+                    key={idx}
+                    className={`px-4 py-2 text-sm cursor-pointer ${theme === 'dark' ? 'hover:bg-[#3e4451] text-white' : 'hover:bg-gray-100 text-black'}`}
+                    onClick={() => handleRunTool(cmd)}
+                  >
+                    {cmd.name}
+                  </div>
+                ))}
+                {toolCommands.length > 0 && <div className={`my-1 border-t ${theme === 'dark' ? 'border-[#181a1f]' : 'border-gray-200'}`}></div>}
+                <div
+                  className={`px-4 py-2 text-sm cursor-pointer ${theme === 'dark' ? 'hover:bg-[#3e4451] text-blue-400' : 'hover:bg-gray-100 text-blue-600'}`}
+                  onClick={handleEditCommands}
+                >
+                  Edit Commands (commands.json)
+                </div>
+              </div>
+            )}
+          </div>
+
           <button
             onClick={() => {
               setIsSplitMode(!isSplitMode);
