@@ -19,6 +19,7 @@ pub fn get_language(lang_name: &str) -> Option<tree_sitter::Language> {
         "c" => Some(tree_sitter_c::LANGUAGE.into()),
         "cpp" => Some(tree_sitter_cpp::LANGUAGE.into()),
         "go" => Some(tree_sitter_go::LANGUAGE.into()),
+        "markdown" => Some(tree_sitter_md::LANGUAGE.into()),
         "text" | _ => None,
     }
 }
@@ -119,6 +120,17 @@ pub fn get_highlight_config(lang_name: &str) -> Option<HighlightConfiguration> {
                 "go",
                 tree_sitter_go::HIGHLIGHTS_QUERY,
                 "",
+                "",
+            ).ok()?;
+            config.configure(&HIGHLIGHT_NAMES);
+            Some(config)
+        }
+        "markdown" => {
+            let mut config = HighlightConfiguration::new(
+                tree_sitter_md::LANGUAGE.into(),
+                "markdown",
+                tree_sitter_md::HIGHLIGHT_QUERY_BLOCK,
+                tree_sitter_md::INJECTION_QUERY_BLOCK,
                 "",
             ).ok()?;
             config.configure(&HIGHLIGHT_NAMES);
