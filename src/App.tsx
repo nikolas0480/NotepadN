@@ -207,7 +207,9 @@ function App() {
     const fetchHighlights = async (tab: Tab | undefined, ref: React.RefObject<ReactCodeMirrorRef | null>) => {
       if (!tab) return;
       try {
-        const tokens = await invoke<any[]>('parse_highlights', { text: tab.content, language: tab.language });
+        const blockTokens = await invoke<any[]>('parse_highlights', { text: tab.content, language: tab.language === 'markdown' ? 'markdown_block' : tab.language });
+        const inlineTokens = tab.language === 'markdown' ? await invoke<any[]>('parse_highlights', { text: tab.content, language: tab.language }) : [];
+        const tokens = [...blockTokens, ...inlineTokens];
         if (ref.current?.view) {
           ref.current.view.dispatch({
              effects: setHighlightsEffect.of(tokens)
@@ -224,7 +226,9 @@ function App() {
     const fetchHighlights = async (tab: Tab | undefined, ref: React.RefObject<ReactCodeMirrorRef | null>) => {
       if (!tab) return;
       try {
-        const tokens = await invoke<any[]>('parse_highlights', { text: tab.content, language: tab.language });
+        const blockTokens = await invoke<any[]>('parse_highlights', { text: tab.content, language: tab.language === 'markdown' ? 'markdown_block' : tab.language });
+        const inlineTokens = tab.language === 'markdown' ? await invoke<any[]>('parse_highlights', { text: tab.content, language: tab.language }) : [];
+        const tokens = [...blockTokens, ...inlineTokens];
         if (ref.current?.view) {
           ref.current.view.dispatch({
              effects: setHighlightsEffect.of(tokens)
