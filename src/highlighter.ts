@@ -119,7 +119,9 @@ export const createTreeSitterExtension = (language: string, theme: 'dark' | 'lig
         debounceTimer = setTimeout(async () => {
           try {
             const text = update.state.doc.toString();
-            const tokens = await invoke<HighlightToken[]>('parse_highlights', { text, language });
+            const blockTokens = await invoke<HighlightToken[]>('parse_highlights', { text, language: language === 'markdown' ? 'markdown_block' : language });
+            const inlineTokens = language === 'markdown' ? await invoke<HighlightToken[]>('parse_highlights', { text, language }) : [];
+            const tokens = [...blockTokens, ...inlineTokens];
             update.view.dispatch({
               effects: setHighlightsEffect.of(tokens),
             });
