@@ -19,14 +19,16 @@ pub struct ExtensionsConfig {
 }
 
 pub fn get_config_path(app: &AppHandle) -> PathBuf {
-    let mut path = app.path().app_config_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let mut path = app
+        .path()
+        .app_config_dir()
+        .unwrap_or_else(|_| PathBuf::from("."));
     path.push("extensions.json");
     path
 }
 
-#[tauri::command]
-pub fn load_extensions(app: AppHandle) -> Result<Vec<Extension>, String> {
-    let path = get_config_path(&app);
+pub fn ensure_config_exists(app: &AppHandle) -> Result<PathBuf, String> {
+    let path = get_config_path(app);
     if !path.exists() {
         if let Some(parent) = path.parent() {
             let _ = fs::create_dir_all(parent);
@@ -47,10 +49,24 @@ pub fn load_extensions(app: AppHandle) -> Result<Vec<Extension>, String> {
                 },
             ],
         };
-        let _ = fs::write(&path, serde_json::to_string_pretty(&default_config).unwrap());
-        return Ok(default_config.extensions);
+        fs::write(
+            &path,
+            serde_json::to_string_pretty(&default_config).unwrap(),
+        )
+        .map_err(|e| format!("Failed to write default config: {}", e))?;
     }
+    Ok(path)
+}
 
+#[tauri::command]
+pub fn get_config_file_path(app: AppHandle) -> Result<String, String> {
+    let path = get_config_path(&app);
+    Ok(path.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+pub fn load_extensions(app: AppHandle) -> Result<Vec<Extension>, String> {
+    let path = ensure_config_exists(&app)?;
     let content = fs::read_to_string(&path).map_err(|e| e.to_string())?;
     let config: ExtensionsConfig = serde_json::from_str(&content).map_err(|e| e.to_string())?;
     Ok(config.extensions)
@@ -107,7 +123,7 @@ mod tests {
         let result = execute_cli_command(command.to_string(), input.to_string());
         assert!(result.is_ok());
         if cfg!(target_os = "windows") {
-             assert!(result.unwrap().trim().contains("hello"));
+            assert!(result.unwrap().trim().contains("hello"));
         } else {
             assert_eq!(result.unwrap(), "hello world");
         }

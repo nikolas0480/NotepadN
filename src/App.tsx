@@ -424,6 +424,31 @@ const handleDragOver = (e: React.DragEvent, id: string) => {
   };
 
 
+  const handleEditConfig = async () => {
+    try {
+      const configPath = await invoke<string>('get_config_file_path');
+      const content = await invoke<string>('open_file', { path: configPath, encoding: 'utf-8' });
+      const newId = Date.now().toString();
+
+      const title = 'extensions.json';
+      const language = 'json';
+
+      setTabs([
+        ...tabs,
+        { id: newId, title, content, path: configPath, language, isDirty: false, encoding: 'utf-8', pane: activePane },
+      ]);
+      if (activePane === 'left') {
+        setActiveTabIdLeft(newId);
+      } else {
+        setActiveTabIdRight(newId);
+      }
+    } catch (e) {
+      console.error('Failed to open config file', e);
+      alert('Error opening config file: ' + e);
+    }
+    setShowExtMenu(false);
+  };
+
   const handleExecuteExtension = async (ext: Extension) => {
     if (!activeTab) return;
 
@@ -524,6 +549,13 @@ const handleDragOver = (e: React.DragEvent, id: string) => {
                     {ext.name}
                   </div>
                 ))}
+                <div className={`my-1 border-t ${theme === 'dark' ? 'border-[#181a1f]' : 'border-gray-200'}`}></div>
+                <div
+                  className={`px-3 py-1.5 cursor-pointer text-sm ${theme === 'dark' ? 'hover:bg-[#3e4451] text-gray-300 hover:text-white' : 'hover:bg-gray-100 text-gray-700 hover:text-black'}`}
+                  onClick={handleEditConfig}
+                >
+                  Edit Config
+                </div>
               </div>
             )}
           </div>
