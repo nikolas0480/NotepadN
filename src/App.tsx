@@ -39,12 +39,15 @@ const getLanguageFromPath = (path: string): string => {
       return 'cpp';
     case 'go':
       return 'go';
+    case 'md':
+    case 'markdown':
+      return 'markdown';
     default:
       return 'text';
   }
 };
 
-const AVAILABLE_LANGUAGES = ['javascript', 'rust', 'python', 'html', 'css', 'json', 'c', 'cpp', 'go', 'text'];
+const AVAILABLE_LANGUAGES = ['javascript', 'rust', 'python', 'html', 'css', 'json', 'c', 'cpp', 'go', 'markdown', 'text'];
 const AVAILABLE_ENCODINGS = ['utf-8', 'windows-1251', 'utf-16le', 'iso-8859-1'];
 
 interface Extension {
