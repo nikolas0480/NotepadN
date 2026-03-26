@@ -1,10 +1,10 @@
-pub mod highlighter;
 pub mod ext;
+pub mod highlighter;
 
-use std::fs;
-use highlighter::{get_highlights, HighlightToken};
 use encoding_rs::Encoding;
-use ext::{load_extensions, execute_cli_command};
+use ext::{ensure_config_exists, execute_cli_command, get_config_file_path, load_extensions};
+use highlighter::{get_highlights, HighlightToken};
+use std::fs;
 
 fn get_encoding(name: &str) -> Option<&'static Encoding> {
     Encoding::for_label(name.as_bytes())
@@ -21,11 +21,11 @@ fn open_file(path: String, encoding: Option<String>) -> Result<String, String> {
 
     // Fallback logic if utf-8 was requested but failed to decode cleanly
     if had_errors && enc_name == "utf-8" {
-       let alt_enc = encoding_rs::WINDOWS_1251;
-       let (alt_cow, _, alt_had_errors) = alt_enc.decode(&bytes);
-       if !alt_had_errors {
-           return Ok(alt_cow.into_owned());
-       }
+        let alt_enc = encoding_rs::WINDOWS_1251;
+        let (alt_cow, _, alt_had_errors) = alt_enc.decode(&bytes);
+        if !alt_had_errors {
+            return Ok(alt_cow.into_owned());
+        }
     }
 
     Ok(cow.into_owned())
@@ -51,12 +51,18 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
+        .setup(|app| {
+            let app_handle = app.handle();
+            let _ = ensure_config_exists(&app_handle);
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             open_file,
             save_file,
             parse_highlights,
             load_extensions,
-            execute_cli_command
+            execute_cli_command,
+            get_config_file_path
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

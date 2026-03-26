@@ -33,18 +33,20 @@ pub fn get_highlight_config(lang_name: &str) -> Option<HighlightConfiguration> {
                 tree_sitter_rust::HIGHLIGHTS_QUERY,
                 tree_sitter_rust::INJECTIONS_QUERY,
                 "", // locals_query
-            ).ok()?;
+            )
+            .ok()?;
             config.configure(&HIGHLIGHT_NAMES);
             Some(config)
         }
         "javascript" => {
-             let mut config = HighlightConfiguration::new(
+            let mut config = HighlightConfiguration::new(
                 tree_sitter_javascript::LANGUAGE.into(),
                 "javascript",
                 tree_sitter_javascript::HIGHLIGHT_QUERY,
                 tree_sitter_javascript::INJECTIONS_QUERY,
                 tree_sitter_javascript::LOCALS_QUERY,
-            ).ok()?;
+            )
+            .ok()?;
             config.configure(&HIGHLIGHT_NAMES);
             Some(config)
         }
@@ -55,7 +57,8 @@ pub fn get_highlight_config(lang_name: &str) -> Option<HighlightConfiguration> {
                 tree_sitter_python::HIGHLIGHTS_QUERY,
                 "",
                 "",
-            ).ok()?;
+            )
+            .ok()?;
             config.configure(&HIGHLIGHT_NAMES);
             Some(config)
         }
@@ -66,7 +69,8 @@ pub fn get_highlight_config(lang_name: &str) -> Option<HighlightConfiguration> {
                 tree_sitter_html::HIGHLIGHTS_QUERY,
                 tree_sitter_html::INJECTIONS_QUERY,
                 "",
-            ).ok()?;
+            )
+            .ok()?;
             config.configure(&HIGHLIGHT_NAMES);
             Some(config)
         }
@@ -77,7 +81,8 @@ pub fn get_highlight_config(lang_name: &str) -> Option<HighlightConfiguration> {
                 tree_sitter_css::HIGHLIGHTS_QUERY,
                 "",
                 "",
-            ).ok()?;
+            )
+            .ok()?;
             config.configure(&HIGHLIGHT_NAMES);
             Some(config)
         }
@@ -88,7 +93,8 @@ pub fn get_highlight_config(lang_name: &str) -> Option<HighlightConfiguration> {
                 tree_sitter_json::HIGHLIGHTS_QUERY,
                 "",
                 "",
-            ).ok()?;
+            )
+            .ok()?;
             config.configure(&HIGHLIGHT_NAMES);
             Some(config)
         }
@@ -99,7 +105,8 @@ pub fn get_highlight_config(lang_name: &str) -> Option<HighlightConfiguration> {
                 tree_sitter_c::HIGHLIGHT_QUERY,
                 "",
                 "",
-            ).ok()?;
+            )
+            .ok()?;
             config.configure(&HIGHLIGHT_NAMES);
             Some(config)
         }
@@ -110,7 +117,8 @@ pub fn get_highlight_config(lang_name: &str) -> Option<HighlightConfiguration> {
                 tree_sitter_cpp::HIGHLIGHT_QUERY,
                 "",
                 "",
-            ).ok()?;
+            )
+            .ok()?;
             config.configure(&HIGHLIGHT_NAMES);
             Some(config)
         }
@@ -121,7 +129,8 @@ pub fn get_highlight_config(lang_name: &str) -> Option<HighlightConfiguration> {
                 tree_sitter_go::HIGHLIGHTS_QUERY,
                 "",
                 "",
-            ).ok()?;
+            )
+            .ok()?;
             config.configure(&HIGHLIGHT_NAMES);
             Some(config)
         }
@@ -132,11 +141,12 @@ pub fn get_highlight_config(lang_name: &str) -> Option<HighlightConfiguration> {
                 tree_sitter_md::HIGHLIGHT_QUERY_BLOCK,
                 tree_sitter_md::INJECTION_QUERY_BLOCK,
                 "",
-            ).ok()?;
+            )
+            .ok()?;
             config.configure(&HIGHLIGHT_NAMES);
             Some(config)
         }
-        _ => None
+        _ => None,
     }
 }
 
