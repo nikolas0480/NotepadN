@@ -51,6 +51,7 @@ interface Extension {
   id: string;
   name: string;
   command: string;
+  allowed_languages?: string[];
 }
 
 interface Tab {
@@ -490,6 +491,14 @@ const handleDragOver = (e: React.DragEvent, id: string) => {
             <FileUp size={16} className="mr-1.5" /> Open
           </button>
 
+          <button
+            onClick={handleSaveFile}
+            className={`flex items-center px-3 py-1.5 text-sm rounded ${theme === 'dark' ? 'hover:bg-[#3a3f4b]' : 'hover:bg-gray-200'} transition-colors`}
+            title="Save File"
+          >
+            <FileDown size={16} className="mr-1.5" /> Save {activeTab?.isDirty && '*'}
+          </button>
+
           <div className="relative">
             <button
               onClick={() => setShowExtMenu(!showExtMenu)}
@@ -503,7 +512,7 @@ const handleDragOver = (e: React.DragEvent, id: string) => {
                 {extensions.length === 0 && (
                    <div className={`px-3 py-1.5 text-sm ${theme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>No extensions</div>
                 )}
-                {extensions.map(ext => (
+                {extensions.filter(ext => !ext.allowed_languages || ext.allowed_languages.length === 0 || ext.allowed_languages.includes(activeTab?.language || 'text')).map(ext => (
                   <div
                     key={ext.id}
                     className={`px-3 py-1.5 cursor-pointer text-sm ${theme === 'dark' ? 'hover:bg-[#3e4451] text-gray-300 hover:text-white' : 'hover:bg-gray-100 text-gray-700 hover:text-black'}`}
@@ -515,14 +524,6 @@ const handleDragOver = (e: React.DragEvent, id: string) => {
               </div>
             )}
           </div>
-
-          <button
-            onClick={handleSaveFile}
-            className={`flex items-center px-3 py-1.5 text-sm rounded ${theme === 'dark' ? 'hover:bg-[#3a3f4b]' : 'hover:bg-gray-200'} transition-colors`}
-            title="Save File"
-          >
-            <FileDown size={16} className="mr-1.5" /> Save {activeTab?.isDirty && '*'}
-          </button>
           <button
             onClick={() => {
               setIsSplitMode(!isSplitMode);
