@@ -88,7 +88,7 @@ NotepadN поддерживает вызов произвольных внешн
 
 ### Настройка своих инструментов
 Список доступных команд можно настраивать через конфигурационный файл.
-При первом запуске программы в директории настроек приложения (например, `~/.config/tauri-app/` на Linux, `%APPDATA%\tauri-app\` на Windows или `~/Library/Application Support/tauri-app/` на macOS) автоматически создастся файл `extensions.json`.
+При первом запуске программы в директории настроек приложения (например, `~/.config/com.jules.notepadn/` на Linux, `%APPDATA%\com.jules.notepadn\` на Windows или `~/Library/Application Support/com.jules.notepadn/` на macOS) автоматически создастся файл `extensions.json`.
 
 Вы можете отредактировать этот файл, чтобы добавить свои собственные команды:
 
