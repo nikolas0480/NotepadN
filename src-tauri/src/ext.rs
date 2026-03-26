@@ -10,6 +10,7 @@ pub struct Extension {
     pub id: String,
     pub name: String,
     pub command: String,
+    pub allowed_languages: Option<Vec<String>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -36,11 +37,13 @@ pub fn load_extensions(app: AppHandle) -> Result<Vec<Extension>, String> {
                     id: "jq-format".to_string(),
                     name: "Format JSON (jq)".to_string(),
                     command: "jq .".to_string(),
+                    allowed_languages: Some(vec!["json".to_string()]),
                 },
                 Extension {
                     id: "gemini-fix".to_string(),
                     name: "Gemini Fix Code".to_string(),
                     command: "gemini \"исправь ошибки в коде: \"".to_string(),
+                    allowed_languages: None,
                 },
             ],
         };
