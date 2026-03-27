@@ -7,7 +7,7 @@ import { search } from '@codemirror/search';
 import { invoke } from '@tauri-apps/api/core';
 import { open, save } from '@tauri-apps/plugin-dialog';
 import { FileDown, FileUp, Plus, X, Moon, Sun } from 'lucide-react';
-import { createTreeSitterExtension, setHighlightsEffect } from './highlighter';
+import { getLanguageExtension } from './highlighter';
 import './App.css';
 
 const getLanguageFromPath = (path: string): string => {
@@ -198,50 +198,10 @@ function App() {
     };
   }, []);
 
-  const getExtensions = (language: string) => [search(), createTreeSitterExtension(language, theme)];
-  const extensionsLeft = useMemo(() => getExtensions(activeTabLeft?.language || 'javascript'), [activeTabLeft?.language, theme]);
-  const extensionsRight = useMemo(() => getExtensions(activeTabRight?.language || 'javascript'), [activeTabRight?.language, theme]);
+  const getExtensions = (language: string) => [search(), getLanguageExtension(language)];
+  const extensionsLeft = useMemo(() => getExtensions(activeTabLeft?.language || 'javascript'), [activeTabLeft?.language]);
+  const extensionsRight = useMemo(() => getExtensions(activeTabRight?.language || 'javascript'), [activeTabRight?.language]);
 
-  // Force an initial parse when active tab changes
-  useEffect(() => {
-    const fetchHighlights = async (tab: Tab | undefined, ref: React.RefObject<ReactCodeMirrorRef | null>) => {
-      if (!tab) return;
-      try {
-        const blockTokens = await invoke<any[]>('parse_highlights', { text: tab.content, language: tab.language === 'markdown' ? 'markdown_block' : tab.language });
-        const inlineTokens = tab.language === 'markdown' ? await invoke<any[]>('parse_highlights', { text: tab.content, language: tab.language }) : [];
-        const tokens = [...blockTokens, ...inlineTokens];
-        if (ref.current?.view) {
-          ref.current.view.dispatch({
-             effects: setHighlightsEffect.of(tokens)
-          });
-        }
-      } catch(e) {
-        console.error("initial parse failed", e);
-      }
-    };
-    fetchHighlights(activeTabLeft, editorRefLeft);
-  }, [activeTabIdLeft, activeTabLeft?.language]);
-
-  useEffect(() => {
-    const fetchHighlights = async (tab: Tab | undefined, ref: React.RefObject<ReactCodeMirrorRef | null>) => {
-      if (!tab) return;
-      try {
-        const blockTokens = await invoke<any[]>('parse_highlights', { text: tab.content, language: tab.language === 'markdown' ? 'markdown_block' : tab.language });
-        const inlineTokens = tab.language === 'markdown' ? await invoke<any[]>('parse_highlights', { text: tab.content, language: tab.language }) : [];
-        const tokens = [...blockTokens, ...inlineTokens];
-        if (ref.current?.view) {
-          ref.current.view.dispatch({
-             effects: setHighlightsEffect.of(tokens)
-          });
-        }
-      } catch(e) {
-        console.error("initial parse failed", e);
-      }
-    };
-    if (isSplitMode && activeTabRight) {
-      fetchHighlights(activeTabRight, editorRefRight);
-    }
-  }, [activeTabIdRight, activeTabRight?.language, isSplitMode]);
 
   const updateActiveTab = (updates: Partial<Tab>) => {
     const currentActiveId = activePane === 'left' ? activeTabIdLeft : activeTabIdRight;
