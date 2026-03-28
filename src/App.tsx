@@ -6,7 +6,7 @@ import { githubLight } from '@uiw/codemirror-theme-github';
 import { search } from '@codemirror/search';
 import { invoke } from '@tauri-apps/api/core';
 import { open, save } from '@tauri-apps/plugin-dialog';
-import { FileDown, FileUp, Plus, X, Moon, Sun } from 'lucide-react';
+import { FileDown, FileUp, Plus, X, Moon, Sun, Loader2 } from 'lucide-react';
 import { getLanguageExtension } from './highlighter';
 import './App.css';
 
@@ -55,6 +55,7 @@ interface Extension {
   name: string;
   command: string;
   allowed_languages?: string[];
+  output_action?: 'replace' | 'append' | 'none';
 }
 
 interface Tab {
@@ -119,6 +120,7 @@ function App() {
   const [extensions, setExtensions] = useState<Extension[]>([]);
   const [showExtMenu, setShowExtMenu] = useState(false);
   const [dragOverTabId, setDragOverTabId] = useState<string | null>(null);
+  const [isExtensionRunning, setIsExtensionRunning] = useState(false);
   const [dragPosition, setDragPosition] = useState<'left' | 'right' | null>(null);
 
   const leftTabs = tabs.filter(t => t.pane !== 'right');
@@ -416,6 +418,15 @@ const handleDragOver = (e: React.DragEvent, id: string) => {
   const handleExecuteExtension = async (ext: Extension) => {
     if (!activeTab) return;
 
+    let command = ext.command;
+    if (command.includes('{path}')) {
+      if (!activeTab.path) {
+        alert('This extension requires a saved file with a path.');
+        return;
+      }
+      command = command.replace(/\{path\}/g, activeTab.path);
+    }
+
     // get selected text if any
     let textToProcess = activeTab.content;
 
@@ -429,23 +440,34 @@ const handleDragOver = (e: React.DragEvent, id: string) => {
         from = selection.from;
         to = selection.to;
         textToProcess = view.state.sliceDoc(from, to);
-
       }
     }
 
-    try {
-      const output = await invoke<string>('execute_cli_command', { command: ext.command, input: textToProcess });
+    setShowExtMenu(false);
+    setIsExtensionRunning(true);
 
-      if (view) {
+    try {
+      const output = await invoke<string>('execute_cli_command', { command: command, input: textToProcess });
+
+      if (view && ext.output_action !== 'none') {
+        let insertFrom = from;
+        let insertTo = to;
+
+        if (ext.output_action === 'append') {
+          insertFrom = to;
+          insertTo = to;
+        }
+
         view.dispatch({
-          changes: { from, to, insert: output }
+          changes: { from: insertFrom, to: insertTo, insert: output }
         });
       }
     } catch (e) {
       console.error('Extension execution failed', e);
       alert('Error: ' + e);
+    } finally {
+      setIsExtensionRunning(false);
     }
-    setShowExtMenu(false);
   };
 
   const handleEncodingChange = async (enc: string) => {
@@ -563,7 +585,17 @@ const handleDragOver = (e: React.DragEvent, id: string) => {
         </div>
       </div>
 
-      {/* Main Panes Area */}
+
+      {/* Extension Running Overlay */}
+      {isExtensionRunning && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className={`flex items-center space-x-3 px-6 py-4 rounded-lg shadow-xl ${theme === 'dark' ? 'bg-[#282c34] text-white' : 'bg-white text-black'}`}>
+            <Loader2 className="animate-spin" size={24} />
+            <span className="text-lg font-medium">Running extension...</span>
+          </div>
+        </div>
+      )}
+{/* Main Panes Area */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Pane */}
         <div className={`flex flex-col flex-1 overflow-hidden ${isSplitMode && activePane === 'left' ? (theme === 'dark' ? 'ring-1 ring-inset ring-[#4d78cc] z-10' : 'ring-1 ring-inset ring-blue-500 z-10') : ''}`} onClick={() => setActivePane('left')}>
