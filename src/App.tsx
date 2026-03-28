@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useEffect, useMemo, useRef } from 'react';
 import CodeMirror, { ReactCodeMirrorRef } from '@uiw/react-codemirror';
+import { EditorView } from '@codemirror/view';
 import { oneDark } from '@codemirror/theme-one-dark';
 import { githubLight } from '@uiw/codemirror-theme-github';
 import { search } from '@codemirror/search';
@@ -107,6 +108,10 @@ function App() {
     return 14;
   });
 
+  const [wordWrap, setWordWrap] = useState<boolean>(() => {
+    return localStorage.getItem('notepadn_wordWrap') === 'true';
+  });
+
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     const savedTheme = localStorage.getItem('notepadn_theme');
     return (savedTheme as 'dark' | 'light') || 'dark';
@@ -165,6 +170,10 @@ function App() {
   }, [theme]);
 
   useEffect(() => {
+    localStorage.setItem('notepadn_wordWrap', wordWrap.toString());
+  }, [wordWrap]);
+
+  useEffect(() => {
     const handleWheel = (e: WheelEvent) => {
       if (e.ctrlKey) {
         e.preventDefault();
@@ -200,9 +209,13 @@ function App() {
     };
   }, []);
 
-  const getExtensions = (language: string) => [search(), getLanguageExtension(language)];
-  const extensionsLeft = useMemo(() => getExtensions(activeTabLeft?.language || 'javascript'), [activeTabLeft?.language]);
-  const extensionsRight = useMemo(() => getExtensions(activeTabRight?.language || 'javascript'), [activeTabRight?.language]);
+  const getExtensions = (language: string) => [
+    ...(wordWrap ? [EditorView.lineWrapping] : []),
+    search(),
+    getLanguageExtension(language)
+  ];
+  const extensionsLeft = useMemo(() => getExtensions(activeTabLeft?.language || 'javascript'), [activeTabLeft?.language, wordWrap]);
+  const extensionsRight = useMemo(() => getExtensions(activeTabRight?.language || 'javascript'), [activeTabRight?.language, wordWrap]);
 
 
   const updateActiveTab = (updates: Partial<Tab>) => {
@@ -536,6 +549,13 @@ const handleDragOver = (e: React.DragEvent, id: string) => {
                   </div>
                 ))}
                 <div className={`my-1 border-t ${theme === 'dark' ? 'border-[#181a1f]' : 'border-gray-200'}`}></div>
+                <div
+                  className={`px-3 py-1.5 cursor-pointer text-sm flex justify-between items-center ${theme === 'dark' ? 'hover:bg-[#3e4451] text-gray-300 hover:text-white' : 'hover:bg-gray-100 text-gray-700 hover:text-black'}`}
+                  onClick={() => { setWordWrap(!wordWrap); setShowExtMenu(false); }}
+                >
+                  <span>Word Wrap</span>
+                  {wordWrap && <span className="text-[10px] ml-2">✓</span>}
+                </div>
                 <div
                   className={`px-3 py-1.5 cursor-pointer text-sm ${theme === 'dark' ? 'hover:bg-[#3e4451] text-gray-300 hover:text-white' : 'hover:bg-gray-100 text-gray-700 hover:text-black'}`}
                   onClick={handleEditConfig}
