@@ -1,9 +1,6 @@
 pub mod ext;
-pub mod highlighter;
-
 use encoding_rs::Encoding;
 use ext::{ensure_config_exists, execute_cli_command, get_config_file_path, load_extensions};
-use highlighter::{get_highlights, HighlightToken};
 use std::fs;
 
 fn get_encoding(name: &str) -> Option<&'static Encoding> {
@@ -40,11 +37,6 @@ fn save_file(path: String, content: String, encoding: Option<String>) -> Result<
     fs::write(&path, cow).map_err(|e| e.to_string())
 }
 
-#[tauri::command]
-fn parse_highlights(text: String, language: String) -> Vec<HighlightToken> {
-    get_highlights(&text, &language)
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -59,7 +51,6 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             open_file,
             save_file,
-            parse_highlights,
             load_extensions,
             execute_cli_command,
             get_config_file_path
