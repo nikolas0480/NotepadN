@@ -11,6 +11,7 @@ pub struct Extension {
     pub name: String,
     pub command: String,
     pub allowed_languages: Option<Vec<String>>,
+    pub output_action: Option<String>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -33,6 +34,15 @@ pub fn ensure_config_exists(app: &AppHandle) -> Result<PathBuf, String> {
         if let Some(parent) = path.parent() {
             let _ = fs::create_dir_all(parent);
         }
+
+        let browser_cmd = if cfg!(target_os = "windows") {
+            "start {path}"
+        } else if cfg!(target_os = "macos") {
+            "open {path}"
+        } else {
+            "xdg-open {path}"
+        };
+
         let default_config = ExtensionsConfig {
             extensions: vec![
                 Extension {
@@ -40,12 +50,21 @@ pub fn ensure_config_exists(app: &AppHandle) -> Result<PathBuf, String> {
                     name: "Format JSON (jq)".to_string(),
                     command: "jq .".to_string(),
                     allowed_languages: Some(vec!["json".to_string()]),
+                    output_action: Some("replace".to_string()),
                 },
                 Extension {
                     id: "gemini-fix".to_string(),
                     name: "Gemini Fix Code".to_string(),
                     command: "gemini \"исправь ошибки в коде: \"".to_string(),
                     allowed_languages: None,
+                    output_action: Some("replace".to_string()),
+                },
+                Extension {
+                    id: "open-browser".to_string(),
+                    name: "Open in Browser".to_string(),
+                    command: browser_cmd.to_string(),
+                    allowed_languages: Some(vec!["html".to_string()]),
+                    output_action: Some("none".to_string()),
                 },
             ],
         };
@@ -94,7 +113,9 @@ pub fn execute_cli_command(command: String, input: String) -> Result<String, Str
 
     if let Some(mut stdin) = child.stdin.take() {
         if let Err(e) = stdin.write_all(input.as_bytes()) {
-            return Err(format!("Failed to write to stdin: {}", e));
+            if e.kind() != std::io::ErrorKind::BrokenPipe {
+                return Err(format!("Failed to write to stdin: {}", e));
+            }
         }
     }
 
